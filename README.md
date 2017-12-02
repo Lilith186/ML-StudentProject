@@ -1,2 +1,4 @@
 # ML-StudentProject
-Please see PML_CourseProject.html to view the document
+
+To view the "PML_CourseProject.html" properly, please go to
+https://lilith186.github.io/ML-StudentProject/
