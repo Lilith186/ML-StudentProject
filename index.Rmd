@@ -1,0 +1,153 @@
+---
+title: "Practical Machine Learning - Course Project"
+author: "L.H."
+date: "2 Dezember 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Data description
+
+We use the "Weight Lifting Exercise Dataset" that contains data from accelerometers on the belt, forearm, arm, 
+and dumbell of 6 participants. The participants were asked to perform barbell lifts correctly and incorrectly in 5 different ways. 
+
+"Six young health participants were asked to perform one set of 10 repetitions of the Unilateral Dumbbell Biceps Curl in five different fashions: exactly according to the specification (Class A), throwing the elbows to the front (Class B), lifting the dumbbell only halfway (Class C), lowering the dumbbell only halfway (Class D) and throwing the hips to the front (Class E)."
+
+The training data for this project are available here:
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here:
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+The data for this project come from this source: http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har.
+
+
+## Goal of the data analysis 
+
+The goal of this project is to predict the manner in which the participants did the exercise by using the "classe" variable as outcome and predict it through any (combination) of the other variables. I will use and build 2 models, compare their accuracy and finally use the model with smallest out-of-sample error to predict 20 classes from the test set provided
+
+To decide which of the two models is performing best, I subdevide the training set into a "real" training set and a validation set (for cross validation). I will train the models on the "real" training set and estimate their accuracy on the validation set. By doing so, we can also estimate the out-of-sample error, which would basically be 1 - accuracy.
+
+
+## Loading the data
+
+We first load all libraries neccessary to perfrom the analysis
+
+```{r}
+library(caret)
+library(rpart) 
+library(randomForest) 
+library(rattle)
+```
+
+To load the training and test data, I set the working directory accordingly (the data was downloaded from the sources given above):
+
+```{r}
+setwd("~/Coursera/DataScience/Part 8/Homework/Project")
+```
+
+Then, I read in the data with the respective function (please note that due to preceding data inspection, I saw that there are different strings denoting missing values):
+
+```{r}
+TrainData <- read.csv("pml-training.csv",header=TRUE, na.strings = c("NA","",'#DIV/0!'))
+testing <- read.csv("pml-testing.csv",header=TRUE, na.strings = c("NA","",'#DIV/0!'))
+```
+
+Let us first have a look at the dimensions
+```{r}
+dim(TrainData)
+dim(testing)
+```
+
+
+## Preprocessing the data
+
+As can be seen, there are very many variables/predictors that need to be studied first. I had a look at the variable contents via the str-function (not shown here to keep the summary short). The variables linked to time, time windows or subject names and index should be excluded from the analysis (basically the first 7 columns).
+
+```{r}
+TrainData <- TrainData[,-c(1:7)]
+testing <- testing[,-c(1:7)]
+```
+
+Strikingly, there are many variables that have missing values denoted by "NA". I exclude all variables that have only missing values
+
+```{r}
+TrainData <- TrainData[,colSums(is.na(TrainData))==0]
+testing <- testing[,colSums(is.na(testing))==0]
+dim(TrainData)
+dim(testing)
+```
+
+Furthermore, we look for variables with near-zero-variance and exclude the respective variables
+
+```{r}
+Near0 <- nearZeroVar(TrainData, saveMetrics = TRUE)
+```
+
+Interestingly, due to our preceding cleaning, there are no near-zero-variance predictors. To further reduce the number of variables, we could perform a PCA analysis. However, I will stick to the 53 variables to keep the summary short.
+
+## Partitioning the training data
+
+I will test 2 models (see below). In order to decide for the best model and estimate their accuracy, I need to partition the training data into a "real" training and a validation data set.
+
+```{r}
+inTrain <- createDataPartition(y=TrainData$classe, p=0.6, list=FALSE)
+training <- TrainData[inTrain,]
+validation <- TrainData[-inTrain,]
+```
+
+Now, I have a training, validation and testing data set.
+
+## Applying ML algorithms
+
+We will apply 2 ML algorithms, namely decision trees and random forests, and compute their accuracy by predicting the classes in the validation data set. Please note that I could also apply a range of other ML algorithms. However, in order to force a short summary, I will make use of decision trees and random forests only.
+
+### First: Predicting with decision trees
+
+I train the model to the training set:
+
+```{r}
+modFit1 <- rpart(classe ~ .,data=training, method="class")
+```
+
+The outcome can be visualized by a decision tree:
+
+```{r}
+fancyRpartPlot(modFit1)
+```
+
+Unfortunately, there are too many branches to really see what is going on.
+To evaluate its accuracy, I predict on the validation set
+
+```{r}
+prediction1 <- predict(modFit1, validation, type = "class")
+confusionMatrix(prediction1, validation$classe)
+```
+
+### Second: Predicting with random forest 
+
+I train the model to the training set:
+
+```{r}
+modFit2 <- randomForest(classe ~ .,data=training)
+```
+
+and predict the accuracy with the validation set:
+
+```{r}
+prediction2 <- predict(modFit2, validation, type = "class")
+confusionMatrix(prediction2, validation$classe)
+```
+
+## Applying the final model to the original test set
+
+The accuracy of the random forest model is much higher. Therefore, I will use this model to evaluate the test set:
+
+```{r}
+pred_final <- predict(modFit2, testing, type = "class")
+pred_final
+```
+
